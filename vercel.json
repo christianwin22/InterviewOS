@@ -1,11 +1,6 @@
 {
   "buildCommand": "vite build",
   "outputDirectory": "dist",
-  "functions": {
-    "api/gemini.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/:path*", "destination": "/index.html" }
