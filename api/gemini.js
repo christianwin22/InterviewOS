@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -54,11 +54,23 @@ export default async function handler(req, res) {
     const data = await geminiRes.json()
 
     if (!geminiRes.ok) {
-      const msg = data?.error?.message || `Gemini API error: ${geminiRes.status}`
+      const msg = data && data.error && data.error.message
+        ? data.error.message
+        : 'Gemini API error: ' + geminiRes.status
       return res.status(geminiRes.status).json({ error: msg })
     }
 
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    const text =
+      data &&
+      data.candidates &&
+      data.candidates[0] &&
+      data.candidates[0].content &&
+      data.candidates[0].content.parts &&
+      data.candidates[0].content.parts[0] &&
+      data.candidates[0].content.parts[0].text
+        ? data.candidates[0].content.parts[0].text
+        : ''
+
     return res.status(200).json({ text })
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Internal server error' })
