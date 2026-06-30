@@ -7,6 +7,7 @@ import { extractPdfText } from '../lib/pdfExtract'
 const INTERVIEW_TYPES = ['HR Screen', 'Hiring Manager', 'Technical', 'Behavioral', 'Panel', 'Case Study', 'Other']
 
 const defaultForm = {
+  profileName: '',
   // Section A
   name: '',
   cvText: '',
@@ -34,36 +35,39 @@ export default function ContextForm() {
   const fileInputRef = useRef(null)
 
   const [form, setForm] = useState(defaultForm)
-  const [loading, setLoading] = useState(true)
+  const [profileId, setProfileId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    loadProfile()
-  }, [])
-
-  async function loadProfile() {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
-
-    if (data) {
-      setForm((prev) => ({
-        ...prev,
-        name: data.name || '',
-        cvText: data.cv_text || '',
-        cvPdfUrl: data.cv_pdf_url || '',
-        cvFilename: data.cv_pdf_url ? data.cv_pdf_url.split('/').pop() : '',
-        presetQA: data.preset_qa || '',
-        personalBackground: data.personal_background || '',
-        additionalContext: data.additional_context || '',
-      }))
+    const stored = sessionStorage.getItem('selectedJobProfile')
+    if (stored) {
+      try {
+        const p = JSON.parse(stored)
+        setProfileId(p.id)
+        setForm({
+          profileName: p.profile_name || '',
+          name: p.name || '',
+          cvText: p.cv_text || '',
+          cvPdfUrl: p.cv_pdf_url || '',
+          cvFilename: p.cv_pdf_url ? p.cv_pdf_url.split('/').pop() : '',
+          presetQA: p.preset_qa || '',
+          personalBackground: p.personal_background || '',
+          additionalContext: p.additional_context || '',
+          interviewType: p.interview_type || '',
+          interviewTypeDetail: p.interview_type_detail || '',
+          interviewer: p.interviewer || '',
+          expectedDuration: p.expected_duration || '',
+          company: p.company || '',
+          jobTitle: p.job_title || '',
+          jobDescription: p.job_description || '',
+          requirements: p.requirements || '',
+          notes: p.notes || '',
+        })
+      } catch (_) {}
     }
-    setLoading(false)
-  }
+  }, [])
 
   function set(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -77,10 +81,8 @@ export default function ContextForm() {
     setError('')
 
     try {
-      // Extract text client-side
       const text = await extractPdfText(file)
 
-      // Upload PDF to Supabase Storage
       const filename = `${user.id}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`
       const { error: uploadError } = await supabase.storage
         .from('resumes')
@@ -107,36 +109,55 @@ export default function ContextForm() {
     setSaving(true)
     setError('')
 
-    // Save Section A to profile
-    const { error: profileError } = await supabase.from('profiles').upsert({
+    const payload = {
       user_id: user.id,
+      profile_name: form.profileName || 'Untitled profile',
       name: form.name,
       cv_text: form.cvText,
       cv_pdf_url: form.cvPdfUrl,
       preset_qa: form.presetQA,
       personal_background: form.personalBackground,
       additional_context: form.additionalContext,
+      interview_type: form.interviewType,
+      interview_type_detail: form.interviewTypeDetail,
+      interviewer: form.interviewer,
+      expected_duration: form.expectedDuration,
+      company: form.company,
+      job_title: form.jobTitle,
+      job_description: form.jobDescription,
+      requirements: form.requirements,
+      notes: form.notes,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' })
+    }
 
-    if (profileError) {
+    let saveError
+    if (profileId) {
+      // Overwrite existing profile
+      const { error } = await supabase
+        .from('job_profiles')
+        .update(payload)
+        .eq('id', profileId)
+        .eq('user_id', user.id)
+      saveError = error
+    } else {
+      // Create new profile
+      const { data, error } = await supabase
+        .from('job_profiles')
+        .insert(payload)
+        .select('id')
+        .single()
+      saveError = error
+      if (data) setProfileId(data.id)
+    }
+
+    if (saveError) {
       setError('Failed to save profile. Please try again.')
       setSaving(false)
       return
     }
 
-    // Store full context in sessionStorage for the mode page
     sessionStorage.setItem('interviewContext', JSON.stringify(form))
-
     navigate(`/${mode}`)
-  }
-
-  if (loading) {
-    return (
-      <div className="page">
-        <div className="loading-screen"><div className="spinner" /></div>
-      </div>
-    )
   }
 
   const modeLabel = mode === 'interview' ? 'Interview' : 'Practice'
@@ -144,7 +165,7 @@ export default function ContextForm() {
   return (
     <div className="page">
       <div className="nav-bar">
-        <button className="nav-back" onClick={() => navigate('/')}>
+        <button className="nav-back" onClick={() => navigate(`/profile-picker/${mode}`)}>
           ← Back
         </button>
         <span className="nav-title">Session setup</span>
@@ -154,6 +175,22 @@ export default function ContextForm() {
       <form className="form-scroll" onSubmit={handleSubmit}>
         <div className="container">
           {error && <div className="error-box" style={{ marginTop: 16 }}>{error}</div>}
+
+          {/* Profile name */}
+          <div className="form-group" style={{ marginTop: 20 }}>
+            <label className="form-label">Profile name</label>
+            <input
+              className="form-input"
+              type="text"
+              value={form.profileName}
+              onChange={(e) => set('profileName', e.target.value)}
+              placeholder="e.g. Google — Senior PM"
+              autoCapitalize="words"
+            />
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 5 }}>
+              Name this profile so you can reuse it later.
+            </div>
+          </div>
 
           {/* Section A */}
           <div className="section-title">A — Your profile</div>
@@ -354,7 +391,7 @@ export default function ContextForm() {
             onClick={handleSubmit}
             disabled={saving}
           >
-            {saving ? 'Saving…' : `Save profile & start ${modeLabel}`}
+            {saving ? 'Saving…' : `Save & start ${modeLabel}`}
           </button>
         </div>
       </div>

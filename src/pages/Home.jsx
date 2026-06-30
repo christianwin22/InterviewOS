@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -8,8 +8,25 @@ export default function Home() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [modalMode, setModalMode] = useState(null)
+  const [showMenu, setShowMenu] = useState(false)
+  const menuRef = useRef(null)
+
+  const initials = user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : '?'
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowMenu(false)
+      }
+    }
+    if (showMenu) document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [showMenu])
 
   async function handleSignOut() {
+    setShowMenu(false)
     await supabase.auth.signOut()
     navigate('/login')
   }
@@ -23,19 +40,78 @@ export default function Home() {
           </div>
           <span className="nav-title">InterviewOS</span>
         </div>
-        <button
-          onClick={handleSignOut}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 14, padding: '8px 0' }}
-        >
-          Sign out
-        </button>
+
+        {/* Account avatar + dropdown */}
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowMenu((v) => !v)}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: 'var(--blue-light)',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'var(--blue-text)',
+              cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+            aria-label="Account menu"
+          >
+            {initials}
+          </button>
+
+          {showMenu && (
+            <div style={{
+              position: 'absolute',
+              right: 0,
+              top: 44,
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              minWidth: 220,
+              zIndex: 50,
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                padding: '12px 16px',
+                borderBottom: '0.5px solid var(--border)',
+                fontSize: 13,
+                color: 'var(--text-secondary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+                {user?.email}
+              </div>
+              <button
+                onClick={handleSignOut}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: 'none',
+                  border: 'none',
+                  textAlign: 'left',
+                  fontSize: 15,
+                  color: 'var(--red)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="home-content">
-        <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 32 }}>
-          {user?.email}
-        </p>
-
         <div className="mode-btn-wrap">
           <button className="btn btn-primary" onClick={() => setModalMode('interview')}>
             <MicSVG size={20} color="white" />
@@ -70,7 +146,7 @@ export default function Home() {
           onClose={() => setModalMode(null)}
           onProceed={() => {
             setModalMode(null)
-            navigate(`/setup/${modalMode}`)
+            navigate(`/profile-picker/${modalMode}`)
           }}
         />
       )}

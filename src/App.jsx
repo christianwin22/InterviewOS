@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Home from './pages/Home'
 import ContextForm from './pages/ContextForm'
+import ProfilePicker from './pages/ProfilePicker'
 import InterviewMode from './pages/InterviewMode'
 import PracticeMode from './pages/PracticeMode'
 import Report from './pages/Report'
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/" element={<PrivateRoute><Home /></PrivateRoute>} />
+          <Route path="/profile-picker/:mode" element={<PrivateRoute><ProfilePicker /></PrivateRoute>} />
           <Route path="/setup/:mode" element={<PrivateRoute><ContextForm /></PrivateRoute>} />
           <Route path="/interview" element={<PrivateRoute><InterviewMode /></PrivateRoute>} />
           <Route path="/practice" element={<PrivateRoute><PracticeMode /></PrivateRoute>} />
