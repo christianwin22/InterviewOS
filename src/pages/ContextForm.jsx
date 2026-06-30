@@ -240,16 +240,20 @@ export default function ContextForm() {
 
           <div className="form-group">
             <label className="form-label">Interview type</label>
-            <select
-              className="form-select"
+            <input
+              className="form-input"
+              type="text"
+              list="interview-type-options"
               value={form.interviewType}
               onChange={(e) => set('interviewType', e.target.value)}
-            >
-              <option value="">Select type…</option>
+              placeholder="e.g. Behavioral, Technical…"
+              autoComplete="off"
+            />
+            <datalist id="interview-type-options">
               {INTERVIEW_TYPES.map((t) => (
-                <option key={t} value={t}>{t}</option>
+                <option key={t} value={t} />
               ))}
-            </select>
+            </datalist>
           </div>
 
           <div className="form-group">
