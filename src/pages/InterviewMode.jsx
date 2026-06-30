@@ -116,43 +116,73 @@ export default function InterviewMode() {
       return
     }
 
-    const recognition = new SR()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-
     let active = true
+    let currentRecognition = null
 
-    recognition.onresult = (event) => {
-      let interim = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const t = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          questionTextRef.current += t + ' '
-        } else {
-          interim = t
+    function createAndStart() {
+      if (!active || phaseRef.current !== 'capturing') return
+
+      const recognition = new SR()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-US'
+      currentRecognition = recognition
+
+      recognition.onresult = (event) => {
+        let interim = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const t = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            questionTextRef.current += t + ' '
+          } else {
+            interim = t
+          }
+        }
+        setLiveTranscript(questionTextRef.current.trimStart() + interim)
+      }
+
+      recognition.onend = () => {
+        // iOS Safari auto-stops — create a fresh instance and restart
+        if (active && phaseRef.current === 'capturing') {
+          setTimeout(createAndStart, 80)
         }
       }
-      setLiveTranscript(questionTextRef.current.trimStart() + interim)
-    }
 
-    recognition.onend = () => {
-      // iOS Safari stops recognition after silence — restart if still active
-      if (active && phaseRef.current === 'capturing') {
-        try { recognition.start() } catch { /* already restarted */ }
+      recognition.onerror = (e) => {
+        if (e.error === 'aborted') return
+        if (e.error === 'no-speech') {
+          // Explicitly restart — iOS doesn't always fire onend after no-speech
+          if (active && phaseRef.current === 'capturing') {
+            try { recognition.stop() } catch { }
+            setTimeout(createAndStart, 150)
+          }
+          return
+        }
+        if (e.error === 'not-allowed') {
+          showToast('Microphone access denied.')
+          return
+        }
+        // For other errors, let onend handle the restart
+      }
+
+      try {
+        recognition.start()
+      } catch {
+        setTimeout(createAndStart, 200)
       }
     }
 
-    recognition.onerror = (e) => {
-      if (e.error === 'no-speech' || e.error === 'aborted') return
-      showToast(`Mic error: ${e.error}`)
-    }
-
-    recognition.start()
+    createAndStart()
 
     recognitionRef.current = {
-      stop: () => { active = false; recognition.stop() },
-      abort: () => { active = false; recognition.abort() },
+      stop: () => {
+        active = false
+        try { currentRecognition?.stop() } catch { }
+      },
+      abort: () => {
+        active = false
+        try { currentRecognition?.abort() } catch { }
+      },
     }
   }, [sessionStarted])
 
